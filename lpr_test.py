@@ -165,7 +165,6 @@ if __name__ == "__main__":
                                                             (cx2, cy2),
                                                             (0,255,0), 2)
                     cv2.imshow("CharResult_"+str(p_num), plate_img)
-                    cv2.imwrite("output_plate/plate_"+str(frame_num)+".jpg", plate_img)
                     p_num += 1
 
             h,w = cvt_img.shape[:2]
