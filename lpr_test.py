@@ -104,6 +104,8 @@ if __name__ == "__main__":
         print("Success read video...")
     
     frame_num = 0
+    # fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    # writer = cv2.VideoWriter('output.avi', fourcc, 30.0, (640, 480))
     while True:
         ret, frame = cap.read()
         if ret:
@@ -173,6 +175,7 @@ if __name__ == "__main__":
             frame_num += 1
             f_time = time.time() - f_start
             # print("=> fps : ", 1/f_time)
+            # writer.write(cvt_img)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
