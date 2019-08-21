@@ -10,3 +10,12 @@ backup
 weights/*.weights
 __pycache__
 checkpoints
+*.pth
+*.pt
+*.ckpt
+*.jpg
+*.txt
+*.png
+*.mp4
+*.avi
+*.wmv
