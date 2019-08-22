@@ -55,9 +55,13 @@ if __name__ == "__main__":
 
     parser.add_argument("--batch_size", default=1, type=int)
     parser.add_argument("--n_cpu", default=0, type=int)
+    parser.add_argument("--cuda", default="cpu", type=str, help="cpu or cuda")
     opt=parser.parse_args()
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if opt.cuda == "cuda":
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = "cpu"
 
     # Check Init.
     print("\t => Use ", device)
