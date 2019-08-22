@@ -25,11 +25,13 @@ import time
 
 
 # Transform image tensor (PIL), return final image tensor
-def transform_tensor(input_tensor, image_size):
+def transform_tensor(input_tensor, image_size, current_device):
     padded_tensor, _ = pad_to_square(input_tensor, 0)
     resize_tensor = resize(padded_tensor, image_size)
     output_tensor = resize_tensor.unsqueeze(0)
+
     ouput_tensor = Variable(output_tensor.type(torch.FloatTensor))
+    output_tensor = output_tensor.to(current_device)
     return output_tensor
 
 
@@ -108,8 +110,8 @@ if __name__ == "__main__":
         print("Success read video...")
     
     frame_num = 0
-    # fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    # writer = cv2.VideoWriter('output.avi', fourcc, 30.0, (640, 480))
+    plate_time_list = []
+    char_time_list = []
     while True:
         ret, frame = cap.read()
         if ret:
@@ -121,13 +123,17 @@ if __name__ == "__main__":
 
             pil_img = Image.fromarray(cvt_img)
             img_tensor = transforms.ToTensor()(pil_img)
-            plate_tensor = transform_tensor(img_tensor, opt.plate_size)
+            plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
             with torch.no_grad():
+                # License Plate Inference Time
                 start = time.time() 
+                
                 plate_detections = plateModel(plate_tensor)
                 plate_detections = non_max_suppression(plate_detections, opt.plate_thres, opt.plate_nms)
+
                 plate_time = time.time() - start
+                plate_time_list.append(plate_time)
             
             if plate_detections[0] is not None:
                 plate_detections = plate_detections[0]
@@ -143,21 +149,25 @@ if __name__ == "__main__":
                     y2 = int(y2.item())
 
                     # draw plate box & crop plate image
-                    cvt_img = cv2.rectangle(cvt_img, (x1, y1), (x2, y2), (0,255,0), 2)
+                    cvt_img = cv2.rectangle(cvt_img, (x1, y1), (x2, y2), (0,0,255), 2)
                     plate_img = cvt_img[y1:y2, x1:x2]
                     plate_pil = Image.fromarray(plate_img)
                     char_tensor = transforms.ToTensor()(plate_pil)
-                    char_tensor = transform_tensor(char_tensor, opt.char_size)
+                    char_tensor = transform_tensor(char_tensor, opt.char_size, device)
                     
 
                     # Character detection
                     with torch.no_grad():
                         c_start = time.time()
+
                         char_detections = charModel(char_tensor)
                         char_detections = non_max_suppression(char_detections,
                                                                 opt.char_thres,
                                                                 opt.char_nms)
+                        # Character Inference Time.
                         char_time = time.time() - c_start
+                        char_time_list.append(char_time)
+
                         print("=> char recog time : ", char_time)
                         if char_detections[0] is not None:
                             char_detections = char_detections[0]
@@ -173,13 +183,14 @@ if __name__ == "__main__":
                     cv2.imshow("CharResult_"+str(p_num), plate_img)
                     p_num += 1
 
+            f_time = time.time() - f_start
+            fps = round((1 / f_time), 2)
+            cv2.putText(cvt_img, str(fps), (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
+
             h,w = cvt_img.shape[:2]
             cv2.imshow("convert frame", cvt_img)        
 
             frame_num += 1
-            f_time = time.time() - f_start
-            # print("=> fps : ", 1/f_time)
-            # writer.write(cvt_img)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -190,3 +201,8 @@ if __name__ == "__main__":
     # Release
     cap.release()
     cv2.destroyAllWindows()
+
+    # Check average inference time
+    print("\n\t==>LPR Inference Time")
+    print("\t\t==>Plate Detection : ", str(sum(plate_time_list) / len(plate_time_list)))
+    print("\t\t==>Character Recognition : ", str(sum(char_time_list) / len(char_time_list)))
