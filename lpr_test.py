@@ -48,8 +48,8 @@ if __name__ == "__main__":
     parser.add_argument("--plate_size", default=416, type=int)
     
     # Character Detection
-    parser.add_argument("--char_config", default="config/char_obj_tiny.cfg", type=str)
-    parser.add_argument("--char_weights", default="weights/char_obj_tiny.weights", type=str)
+    parser.add_argument("--char_config", default="config/char.cfg", type=str)
+    parser.add_argument("--char_weights", default="weights/char-tiny_best.weights", type=str)
     parser.add_argument("--char_names", default="data/char_obj_tiny.names", type=str)
     parser.add_argument("--char_thres", default=0.6, type=float)
     parser.add_argument("--char_nms", default=0.5, type=float)
@@ -125,6 +125,10 @@ if __name__ == "__main__":
             img_tensor = transforms.ToTensor()(pil_img)
             plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
+            # for Visualization
+            char_detect_size = 0
+            result_char = ""
+
             with torch.no_grad():
                 # License Plate Inference Time
                 start = time.time() 
@@ -167,15 +171,21 @@ if __name__ == "__main__":
                         # Character Inference Time.
                         char_time = time.time() - c_start
                         char_time_list.append(char_time)
-
-                        print("=> char recog time : ", char_time)
+                        # print("=> char recog time : ", char_time)
                         if char_detections[0] is not None:
                             char_detections = char_detections[0]
                             char_detections = rescale_boxes(char_detections,
                                                                 opt.char_size,
                                                                 plate_img.shape[:2])
                             char_labels = char_detections[:, -1].cpu().unique()
+                            char_detect_size = len(char_detections)
                             for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in char_detections:
+
+                                # License plate char result
+                                pred_index = int(c_cls_pred.cpu())
+                                result_char += c_names[pred_index]
+
+                                # Draw character detection boxes
                                 plate_img = cv2.rectangle(plate_img,
                                                             (cx1, cy1),
                                                             (cx2, cy2),
@@ -185,7 +195,11 @@ if __name__ == "__main__":
 
             f_time = time.time() - f_start
             fps = round((1 / f_time), 2)
-            cv2.putText(cvt_img, str(fps), (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
+            
+            # Put text
+            cv2.putText(cvt_img, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
+            if char_detect_size > 5:
+                cv2.putText(cvt_img, result_char, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
 
             h,w = cvt_img.shape[:2]
             cv2.imshow("convert frame", cvt_img)        
