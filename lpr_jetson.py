@@ -14,12 +14,8 @@ from PIL import Image
 
 import torch
 from torch.utils.data import DataLoader
-from torchvision import datasets
 from torch.autograd import Variable
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.ticker import NullLocator
 import cv2
 import time
 
@@ -51,7 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("--char_config", default="config/char_obj_tiny.cfg", type=str)
     parser.add_argument("--char_weights", default="weights/char-tiny_best.weights", type=str)
     parser.add_argument("--char_names", default="data/char_obj_tiny.names", type=str)
-    parser.add_argument("--char_thres", default=0.6, type=float)
+    parser.add_argument("--char_thres", default=0.5, type=float)
     parser.add_argument("--char_nms", default=0.5, type=float)
     parser.add_argument("--char_size", default=416, type=int)
 
@@ -122,8 +118,10 @@ if __name__ == "__main__":
             cvt_img =cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
 
             pil_img = Image.fromarray(cvt_img)
-            img_tensor = transforms.ToTensor()(pil_img)            
-
+            ## not torchvision
+            img_tensor = np.array(pil_img)
+            img_tensor = torch.from_numpy(img_tensor).float().to(device)
+            img_tensor = img_tensor.permute(2,0,1) / 255.
             plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
             # for Visualization
@@ -158,8 +156,11 @@ if __name__ == "__main__":
                     plate_img = cvt_img[y1:y2, x1:x2]
                     plate_pil = Image.fromarray(plate_img)
 
-                    # to Tensor
-                    char_tensor = transforms.ToTensor()(plate_pil)
+                    ## not torchvision
+                    char_tensor = np.array(plate_pil)
+                    char_tensor = torch.from_numpy(char_tensor).float().to(device)
+                    char_tensor = char_tensor.permute(2,0,1) / 255.
+                    
                     char_tensor = transform_tensor(char_tensor, opt.char_size, device)
                     
 
@@ -193,7 +194,7 @@ if __name__ == "__main__":
                                                             (cx1, cy1),
                                                             (cx2, cy2),
                                                             (0,255,0), 2)
-                    # cv2.imshow("CharResult_"+str(p_num), plate_img)
+                    cv2.imshow("CharResult_"+str(p_num), plate_img)
                     p_num += 1
 
             f_time = time.time() - f_start

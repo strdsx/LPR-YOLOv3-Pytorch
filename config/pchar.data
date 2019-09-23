@@ -1,0 +1,5 @@
+classes=84
+train=/home/jaehyeon/data/trainLPC_12M.txt
+valid=/home/jaehyeon/data/validLPC_03M.txt
+names=data/pchar84.names
+backup=backup/
