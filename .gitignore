@@ -16,3 +16,6 @@ video
 *.wmv
 *.jpg
 *.png
+
+*.swo
+*.swp
