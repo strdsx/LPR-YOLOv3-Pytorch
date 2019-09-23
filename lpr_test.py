@@ -17,9 +17,6 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 from torch.autograd import Variable
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.ticker import NullLocator
 import cv2
 import time
 
@@ -41,7 +38,7 @@ if __name__ == "__main__":
 
     # License Plate Detection
     parser.add_argument("--plate_config", default="config/plate-tiny.cfg", type=str)
-    parser.add_argument("--plate_weights", default="weights/plate-tiny_4000.weights", type=str)
+    parser.add_argument("--plate_weights", default="weights/plate-tiny.weights", type=str)
     parser.add_argument("--plate_names", default="data/plate_obj_tiny.names", type=str)
     parser.add_argument("--plate_thres", default=0.5, type=float)
     parser.add_argument("--plate_nms", default=0.5, type=float)
@@ -50,6 +47,7 @@ if __name__ == "__main__":
     # Character Detection
     parser.add_argument("--char_config", default="config/char_obj_tiny.cfg", type=str)
     parser.add_argument("--char_weights", default="weights/char-tiny_best.weights", type=str)
+    parser.add_argument("--char_weights", default="weights/pchar-tiny.weights", type=str)
     parser.add_argument("--char_names", default="data/char_obj_tiny.names", type=str)
     parser.add_argument("--char_thres", default=0.6, type=float)
     parser.add_argument("--char_nms", default=0.5, type=float)
@@ -124,6 +122,16 @@ if __name__ == "__main__":
             pil_img = Image.fromarray(cvt_img)
             img_tensor = transforms.ToTensor()(pil_img)            
 
+            ## torchvision
+            img_tensor = transforms.ToTensor()(pil_img)
+
+            ## not torchvision
+            '''
+            img_tensor = np.array(pil_img)
+            img_tensor = torch.from_numpy(img_tensor).float().to(device)
+            img_tensor = img_tensor.permute(2,0,1) / 255.
+            '''
+
             plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
             # for Visualization
@@ -161,7 +169,6 @@ if __name__ == "__main__":
                     # to Tensor
                     char_tensor = transforms.ToTensor()(plate_pil)
                     char_tensor = transform_tensor(char_tensor, opt.char_size, device)
-                    
 
                     # Character detection
                     with torch.no_grad():

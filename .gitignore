@@ -14,5 +14,9 @@ checkpoints
 video
 *.mp4
 *.avi
+*.wmv
 *.jpg
 *.png
+
+*.swo
+*.swp

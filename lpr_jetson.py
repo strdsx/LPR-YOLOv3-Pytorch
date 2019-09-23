@@ -194,7 +194,6 @@ if __name__ == "__main__":
                                                             (cx1, cy1),
                                                             (cx2, cy2),
                                                             (0,255,0), 2)
-                    cv2.imshow("CharResult_"+str(p_num), plate_img)
                     p_num += 1
 
             f_time = time.time() - f_start
@@ -204,6 +203,7 @@ if __name__ == "__main__":
             cv2.putText(cvt_img, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
             if char_detect_size > 5:
                 cv2.putText(cvt_img, result_char, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
+                print("\t ===> Character : ", result_char)
 
             h,w = cvt_img.shape[:2]
             cv2.imshow("convert frame", cvt_img)        
