@@ -95,10 +95,13 @@ if __name__ == "__main__":
         plate_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
 
         pil_img = Image.fromarray(plate_img)
+        # img_tensor = transforms.ToTensor()(pil_img)
 
+        # jetson
         img_tensor = np.array(pil_img)
         img_tensor = torch.from_numpy(img_tensor).float().to(device)
-        img_tensor = img_tensor.permute(2,0,1)
+        img_tensor = img_tensor.permute(2,0,1) / 255.
+
         plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
         # for Visualization

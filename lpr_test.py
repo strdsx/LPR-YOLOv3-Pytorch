@@ -14,12 +14,12 @@ from PIL import Image
 
 import torch
 from torch.utils.data import DataLoader
-from torchvision import datasets
+# from torchvision import datasets
 from torch.autograd import Variable
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.ticker import NullLocator
+# import matplotlib.pyplot as plt
+# import matplotlib.patches as patches
+# from matplotlib.ticker import NullLocator
 import cv2
 import time
 
@@ -41,15 +41,15 @@ if __name__ == "__main__":
 
     # License Plate Detection
     parser.add_argument("--plate_config", default="config/plate-tiny.cfg", type=str)
-    parser.add_argument("--plate_weights", default="weights/plate-tiny_4000.weights", type=str)
+    parser.add_argument("--plate_weights", default="weights/plate-tiny.weights", type=str)
     parser.add_argument("--plate_names", default="data/plate_obj_tiny.names", type=str)
     parser.add_argument("--plate_thres", default=0.5, type=float)
     parser.add_argument("--plate_nms", default=0.5, type=float)
     parser.add_argument("--plate_size", default=416, type=int)
     
     # Character Detection
-    parser.add_argument("--char_config", default="config/char.cfg", type=str)
-    parser.add_argument("--char_weights", default="weights/char-tiny_best.weights", type=str)
+    parser.add_argument("--char_config", default="config/char_obj_tiny.cfg", type=str)
+    parser.add_argument("--char_weights", default="weights/pchar-tiny.weights", type=str)
     parser.add_argument("--char_names", default="data/char_obj_tiny.names", type=str)
     parser.add_argument("--char_thres", default=0.6, type=float)
     parser.add_argument("--char_nms", default=0.5, type=float)
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--batch_size", default=1, type=int)
     parser.add_argument("--n_cpu", default=0, type=int)
-    parser.add_argument("--cuda", default="cpu", type=str, help="cpu or cuda")
+    parser.add_argument("--cuda", default="cuda", type=str, help="cpu or cuda")
     opt=parser.parse_args()
     
     if opt.cuda == "cuda":
@@ -122,7 +122,15 @@ if __name__ == "__main__":
             cvt_img =cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
 
             pil_img = Image.fromarray(cvt_img)
-            img_tensor = transforms.ToTensor()(pil_img)
+
+            ## torchvision
+            # img_tensor = transforms.ToTensor()(pil_img)
+
+            ## not torchvision
+            img_tensor = np.array(pil_img)
+            img_tensor = torch.from_numpy(img_tensor).float().to(device)
+            img_tensor = img_tensor.permute(2,0,1) / 255.
+
             plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
             # for Visualization
@@ -156,7 +164,14 @@ if __name__ == "__main__":
                     cvt_img = cv2.rectangle(cvt_img, (x1, y1), (x2, y2), (0,0,255), 2)
                     plate_img = cvt_img[y1:y2, x1:x2]
                     plate_pil = Image.fromarray(plate_img)
-                    char_tensor = transforms.ToTensor()(plate_pil)
+                    ## torchvision
+                    # char_tensor = transforms.ToTensor()(plate_pil)
+
+                    ## not torchvision
+                    char_tensor = np.array(plate_pil)
+                    char_tensor = torch.from_numpy(char_tensor).float().to(device)
+                    char_tensor = char_tensor.permute(2,0,1) / 255.
+
                     char_tensor = transform_tensor(char_tensor, opt.char_size, device)
                     
 

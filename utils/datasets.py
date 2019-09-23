@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 from utils.augmentations import horisontal_flip
 from torch.utils.data import Dataset
-import torchvision.transforms as transforms
+# import torchvision.transforms as transforms
 
 
 def pad_to_square(img, pad_value):
