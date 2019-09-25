@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-def toKorean(object_id):
+def get_name(object_id):
     kr_names = ["0","1","2","3","4","5","6","7","8","9",
         "가","나","고","노","다","라","마","거","너","더","러","머","도","로","모",
         "구","누","두","루","무","버","서","어","저","보","소","오","조","부","수","우",
@@ -9,7 +9,13 @@ def toKorean(object_id):
         "부산","대구","인천","경기","대전","울산","경기","강원","충북","충남","전북","전남","경북","경남","제주","서울","세종",
         "부산","대구","인천","경기","대전","울산","경기","강원","충북","충남","전북","전남","경북","경남","제주","서울","세종"
     ]
-    return kr_names[object_id]
+    char_type = "NUMBER"
+    if 9 < object_id < 50:
+        char_type = "SINGLE"
+    elif object_id > 49:
+        char_type = "AREA"
+    
+    return kr_names[object_id], char_type
 
 def delete_overlap(input_array):
     error_boxes = []
@@ -40,17 +46,13 @@ def delete_overlap(input_array):
 
     return input_array
 
+'''
 def delete_errorbox(input_array):
     error_boxes = []
-    '''
+    
     if len(input_array) > 6: # max number of character
         # Thin plate
-    '''
-
-        
-
-
-
+'''
 
 def sort_boxes(char_detections):
     # x1, y1, x2, y2, prob, cls_conf, object_id
@@ -86,14 +88,16 @@ def sort_boxes(char_detections):
                 top_line.append(y_sorted[idx+1])
 
     # X sort
-    sorted_boxes = sorted(top_line, key=lambda x_value: x_value[0])
+    top_x_sorted = sorted(top_line, key=lambda x_value: x_value[0])
     bottom_x_sorted = sorted(bottom_line, key=lambda x_value: x_value[0])
 
-    sorted_boxes = delete_overlap(sorted_boxes)
+    # Delete overlap box
+    top_x_sorted = delete_overlap(top_x_sorted)
     bottom_x_sorted = delete_overlap(bottom_x_sorted)
 
-    # merge top, bottom lines
-    for i in bottom_x_sorted:
-        sorted_boxes.append(i)
+    # Final box 
+    final_boxes = top_x_sorted
+    if len(bottom_x_sorted) > 0:
+        final_boxes = top_x_sorted.extend(bottom_x_sorted)
 
-    return sorted_boxes        
+    return final_boxes        

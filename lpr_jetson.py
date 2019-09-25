@@ -200,7 +200,8 @@ if __name__ == "__main__":
                                     pred_index = int(c_cls_pred.cpu())
 
                                     # result_char += c_names[pred_index]
-                                    result_char += toKorean(pred_index)
+                                    get_char,  _ = get_name(pred_index)
+                                    result_char += get_char
 
                                     # Draw character detection boxes
                                     plate_img = cv2.rectangle(plate_img,
@@ -217,7 +218,11 @@ if __name__ == "__main__":
 
             # Put text
             cv2.putText(cvt_img, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-            
+            if frame_num == 816:
+                cv2.imshow("plate test", plate_img)
+                cv2.waitKey()
+                cv2.destroyAllWindows()
+
             if char_detect_size > 6:
                 cv2.putText(cvt_img, result_char, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
                 print("frame => {}\tResult character => {} \tPlate Inference Time => {}sec \tChar Inference Time => {}sec".format(
