@@ -17,7 +17,8 @@ video
 *.wmv
 *.jpg
 *.png
-.vscode
 
 *.swo
 *.swp
+
+.vscode
