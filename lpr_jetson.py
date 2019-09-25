@@ -3,6 +3,7 @@ from __future__ import division
 from models import *
 from utils.utils import *
 from utils.datasets import *
+from utils.postprocess import *
 
 import os
 import sys
@@ -18,7 +19,6 @@ from torch.autograd import Variable
 
 import cv2
 import time
-
 
 # Transform image tensor (PIL), return final image tensor
 def transform_tensor(input_tensor, image_size, current_device):
@@ -188,27 +188,41 @@ if __name__ == "__main__":
                                                                     plate_img.shape[:2])
                                 char_labels = char_detections[:, -1].cpu().unique()
                                 char_detect_size = len(char_detections)
-                                for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in char_detections:
 
+                                sorted_boxes = sort_boxes(char_detections)
+                                
+                                ############################################################
+                                #################### Visualization #######################
+
+                                # Get x, y, width, height, ObjectConf, ClassSpecificConf.
+                                for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in sorted_boxes:
                                     # License plate char result
                                     pred_index = int(c_cls_pred.cpu())
-                                    result_char += c_names[pred_index]
+
+                                    # result_char += c_names[pred_index]
+                                    result_char += toKorean(pred_index)
 
                                     # Draw character detection boxes
                                     plate_img = cv2.rectangle(plate_img,
                                                                 (cx1, cy1),
                                                                 (cx2, cy2),
-                                                                (0,255,0), 2)
+                                                                (0,255,0), 1)
+
+                                ############################################################
+                                ############################################################
                         p_num += 1
 
             f_time = time.time() - f_start
             fps = round((1 / f_time), 2)
-            
+
             # Put text
             cv2.putText(cvt_img, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-            if char_detect_size > 5:
+            
+            if char_detect_size > 6:
                 cv2.putText(cvt_img, result_char, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-                print("\tResult character => {} \tPlate Inference Time => {}sec \tChar Inference Time => {}sec".format(result_char, round(plate_time,4) ,round(char_time,4)))
+                print("frame => {}\tResult character => {} \tPlate Inference Time => {}sec \tChar Inference Time => {}sec".format(
+                    frame_num, result_char, round(plate_time,4) ,round(char_time,4))
+                    )
 
             h,w = cvt_img.shape[:2]
             cv2.imshow("convert frame", cvt_img)        
