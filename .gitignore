@@ -21,4 +21,4 @@ video
 *.swo
 *.swp
 
-.vscode/*
+.vscode
