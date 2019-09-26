@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import os
 
 def get_name(object_id):
     kr_names = ["0","1","2","3","4","5","6","7","8","9",
@@ -95,9 +96,73 @@ def sort_boxes(char_detections):
     top_x_sorted = delete_overlap(top_x_sorted)
     bottom_x_sorted = delete_overlap(bottom_x_sorted)
 
-    # Final box 
+    # Merge to final box
     final_boxes = top_x_sorted
     if len(bottom_x_sorted) > 0:
         final_boxes = top_x_sorted.extend(bottom_x_sorted)
+    else:
+        final_boxes = char_detections
 
-    return final_boxes        
+    # Exception error
+    if type(final_boxes) == type(None):
+        final_boxes = char_detections
+
+    return final_boxes
+
+def char_analysis():
+    img_folder = "../hig_crop/"
+    img_list = [x for x in os.listdir(img_folder) if x.endswith(".jpg")]
+
+    ori_list = []
+    bin_list = []
+    adapt_list = []
+
+    for i in img_list:
+        img_path = img_folder + i
+        img = cv2.imread(img_path)
+        
+        if type(img) is not type(None):
+            ori_list.append(img)
+
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            g_blur = cv2.GaussianBlur(gray, (3,3), 0)
+
+            # Binary
+            _, bin_img = cv2.threshold(g_blur, 127, 255, cv2.THRESH_BINARY)
+            h,w = bin_img.shape[:2]
+            bin_img[int(h/5):int(h/5*4), int(w/4):int(w/4*3)] = 255
+            bin_list.append(bin_img)
+
+            # Adaptive Threshold
+            adapt_bin_img = cv2.adaptiveThreshold(g_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, 
+                cv2.THRESH_BINARY, 15, 2)
+
+            adapt_list.append(adapt_bin_img)
+            
+
+            
+
+    cnt = 0
+    for j in range(len(ori_list)):
+        ori_name = str(j) + "_ori"
+        bin_name = str(j) + "_bin"
+        adpt_name = str(j) + "_adapt"
+
+        cv2.namedWindow(ori_name)
+        cv2.namedWindow(bin_name)
+        cv2.namedWindow(adpt_name)
+
+        cv2.moveWindow(ori_name, 0,int(cnt*150))
+        cv2.moveWindow(bin_name, 200, int(cnt*150))
+        cv2.moveWindow(adpt_name, 400, int(cnt*150))
+
+        cv2.imshow(ori_name, ori_list[j])
+        cv2.imshow(bin_name, bin_list[j])
+        cv2.imshow(adpt_name, adapt_list[j])
+
+        if j % 10 == 0:
+            cv2.waitKey()
+            cv2.destroyAllWindows()
+            cnt = 0
+
+        cnt += 1

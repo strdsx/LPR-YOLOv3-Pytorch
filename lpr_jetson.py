@@ -105,9 +105,13 @@ if __name__ == "__main__":
     if cap.isOpened():
         print("Success read video...")
     
+    # for Inference time 
     frame_num = 0
     plate_time_list = []
     char_time_list = []
+
+    crop_count = 0
+
     while True:
         ret, frame = cap.read()
         if ret:
@@ -153,7 +157,7 @@ if __name__ == "__main__":
                         y2 = int(y2.item())
 
                         # draw plate box & crop plate image
-                        cvt_img = cv2.rectangle(cvt_img, (x1, y1), (x2, y2), (0,0,255), 2)
+                        frame = cv2.rectangle(frame, (x1, y1), (x2, y2), (0,0,255), 2)
 
                         plate_img = cvt_img[y1:y2, x1:x2]
                         plate_pil = Image.fromarray(plate_img)
@@ -176,7 +180,6 @@ if __name__ == "__main__":
                                                                     opt.char_nms)
                             # Character Inference Time.
                             char_time = time.time() - c_start
-                            # print("=> char recog time : ", char_time)
 
                             if char_detections[0] is not None:
                                 # Inference time
@@ -186,7 +189,8 @@ if __name__ == "__main__":
                                 char_detections = rescale_boxes(char_detections,
                                                                     opt.char_size,
                                                                     plate_img.shape[:2])
-                                char_labels = char_detections[:, -1].cpu().unique()
+
+                                # char_labels = char_detections[:, -1].cpu().unique()
                                 char_detect_size = len(char_detections)
 
                                 sorted_boxes = sort_boxes(char_detections)
@@ -195,42 +199,55 @@ if __name__ == "__main__":
                                 #################### Visualization #######################
 
                                 # Get x, y, width, height, ObjectConf, ClassSpecificConf.
-                                for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in sorted_boxes:
+                                for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in sorted_boxes:                                    
                                     # License plate char result
                                     pred_index = int(c_cls_pred.cpu())
 
-                                    # result_char += c_names[pred_index]
                                     get_char,  _ = get_name(pred_index)
                                     result_char += get_char
 
-                                    # Draw character detection boxes
+                                    # Draw character detection boxes ==> Plate image
+                                    '''
                                     plate_img = cv2.rectangle(plate_img,
                                                                 (cx1, cy1),
                                                                 (cx2, cy2),
                                                                 (0,255,0), 1)
+                                    '''
+                                    cx1, cy1, cx2, cy2 = int(cx1), int(cy1), int(cx2), int(cy2)
+                                    crop_img = plate_img[cy1:cy2, cx1:cx2]
+                                    cv2.imwrite("./hig_crop/" + str(frame_num) + "_" + str(crop_count) + ".jpg", crop_img)
+                                    
+
+                                    # Darw character detectinos boxes ==> Origin iamge
+                                    frame = cv2.rectangle(frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (0,255,0), 1)
 
                                 ############################################################
                                 ############################################################
+
                         p_num += 1
+
+                
 
             f_time = time.time() - f_start
             fps = round((1 / f_time), 2)
 
             # Put text
-            cv2.putText(cvt_img, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-            if frame_num == 816:
-                cv2.imshow("plate test", plate_img)
-                cv2.waitKey()
-                cv2.destroyAllWindows()
+            cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
 
             if char_detect_size > 6:
-                cv2.putText(cvt_img, result_char, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
+                # cv2.putText(frame, result_char, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
+                '''
                 print("frame => {}\tResult character => {} \tPlate Inference Time => {}sec \tChar Inference Time => {}sec".format(
                     frame_num, result_char, round(plate_time,4) ,round(char_time,4))
                     )
+                '''
 
+            # Show video
             h,w = cvt_img.shape[:2]
-            cv2.imshow("convert frame", cvt_img)        
+            winname = opt.video_path.split("/")[1]
+            cv2.namedWindow(winname)
+            cv2.moveWindow(winname, 1000,0)
+            cv2.imshow(winname, frame)
 
             frame_num += 1
 
