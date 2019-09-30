@@ -2,7 +2,7 @@ import os
 import cv2
 
 def main():
-    img_folder = "./data/plate_rotate_tmp/"
+    img_folder = "./data/car/"
 
     img_list = os.listdir(img_folder)
 

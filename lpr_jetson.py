@@ -215,7 +215,7 @@ if __name__ == "__main__":
                                     '''
                                     cx1, cy1, cx2, cy2 = int(cx1), int(cy1), int(cx2), int(cy2)
                                     crop_img = plate_img[cy1:cy2, cx1:cx2]
-                                    cv2.imwrite("./hig_crop/" + str(frame_num) + "_" + str(crop_count) + ".jpg", crop_img)
+                                    # cv2.imwrite("./hig_crop/" + str(frame_num) + "_" + str(crop_count) + ".jpg", crop_img)
                                     
 
                                     # Darw character detectinos boxes ==> Origin iamge
@@ -226,8 +226,6 @@ if __name__ == "__main__":
 
                         p_num += 1
 
-                
-
             f_time = time.time() - f_start
             fps = round((1 / f_time), 2)
 
@@ -235,12 +233,10 @@ if __name__ == "__main__":
             cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
 
             if char_detect_size > 6:
-                # cv2.putText(frame, result_char, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-                '''
+                cv2.putText(frame, result_char, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
                 print("frame => {}\tResult character => {} \tPlate Inference Time => {}sec \tChar Inference Time => {}sec".format(
                     frame_num, result_char, round(plate_time,4) ,round(char_time,4))
                     )
-                '''
 
             # Show video
             h,w = cvt_img.shape[:2]

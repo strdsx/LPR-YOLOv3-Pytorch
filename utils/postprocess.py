@@ -22,6 +22,7 @@ def delete_overlap(input_array):
     error_boxes = []
     for i, info in enumerate(input_array):
         if i < (len(input_array) -1):
+
             # Current box info.
             curr_bw = info[2] - info[0]
             curr_cx = info[0] + float(curr_bw / 2)
@@ -40,12 +41,18 @@ def delete_overlap(input_array):
                     error_index = i
                     
                 error_boxes.append(error_index)
-
+    
     # Delete overlap boxes
-    for e in error_boxes:
-        del input_array[e]
+    # for e in error_boxes:
+    #     print("len(input_array) = {}, error index = {}".format(len(input_array), e))
+    #     del input_array[e]
 
-    return input_array
+    return_array = []
+    for i, b in enumerate(input_array):
+        if i not in error_boxes:
+            return_array.append(b)
+
+    return return_array
 
 '''
 def delete_errorbox(input_array):
@@ -57,20 +64,27 @@ def delete_errorbox(input_array):
 
 def sort_boxes(char_detections):
     # x1, y1, x2, y2, prob, cls_conf, object_id
-    '''
-    plate_tensor = np.array(
-        [[56.780655, 8.455865, 63.07199,18.356714, 0.9345888, 0.9963361, 5.],
-        [50.26172, 8.582612, 56.638973, 18.846937, 0.93030804, 0.99982554, 0.],
-        [62.7273, 7.9615235, 69.48192, 17.991077, 0.9639955, 0.9479099, 9.],
-        [69.439125, 7.4344854, 75.984375, 17.992281, 0.9599736, 0.89220864, 9.],
-        [33.128117, 9.394947, 39.34961, 19.837324, 0.8056386, 0.9879038, 6.],
-        [26.695444, 8.803099, 33.28907, 19.630323, 0.5839797, 0.9987348, 3.],
-        [39.130512, 8.719946, 48.26919, 19.141325, 0.85395133, 0.63955206, 14.]]
-        )
-    '''
+    # char_detections = np.array(
+    #     [[56.780655, 8.455865, 63.07199,18.356714, 0.9345888, 0.9963361, 5.],
+    #     [50.26172, 8.582612, 56.638973, 18.846937, 0.93030804, 0.99982554, 0.],
+    #     [62.7273, 7.9615235, 69.48192, 17.991077, 0.9639955, 0.9479099, 9.],
+    #     [69.439125, 7.4344854, 75.984375, 17.992281, 0.9599736, 0.89220864, 9.],
+    #     [33.128117, 9.394947, 39.34961, 19.837324, 0.8056386, 0.9879038, 6.],
+    #     [26.695444, 8.803099, 33.28907, 19.630323, 0.5839797, 0.9987348, 3.],
+    #     [39.130512, 8.719946, 48.26919, 19.141325, 0.85395133, 0.63955206, 14.]]
+    #     )
+
+    # char_detections = [[32.2381,  4.3751, 37.6869, 11.9321,  0.9933,  0.9994,  1.0000],
+    #     [42.5776,  3.4111, 47.6819, 11.9104,  0.9923,  0.9902,  7.0000],
+    #     [37.2367,  3.9156, 43.1454, 11.8366,  0.9502,  0.8785,  9.0000],
+    #     [25.9663,  4.7542, 32.4655, 11.9797,  0.6387,  0.9787,  9.0000],
+    #     [ 8.0195,  5.8439, 13.6192, 13.6766,  0.5533,  0.9996,  4.0000],
+    #     [17.0385,  4.4799, 26.8813, 13.6360,  0.9317,  0.4455, 36.0000],
+    #     [12.9755,  5.2855, 18.1150, 13.8681,  0.9161,  0.2191,  3.0000]]
 
     # Y sort
     y_sorted = sorted(char_detections, key=lambda y_value: y_value[1])
+
     bottom_line = []
     top_line = [y_sorted[0]]
 
@@ -96,12 +110,12 @@ def sort_boxes(char_detections):
     top_x_sorted = delete_overlap(top_x_sorted)
     bottom_x_sorted = delete_overlap(bottom_x_sorted)
 
+
     # Merge to final box
     final_boxes = top_x_sorted
+
     if len(bottom_x_sorted) > 0:
-        final_boxes = top_x_sorted.extend(bottom_x_sorted)
-    else:
-        final_boxes = char_detections
+        final_boxes.extend(bottom_x_sorted)
 
     # Exception error
     if type(final_boxes) == type(None):
@@ -109,6 +123,8 @@ def sort_boxes(char_detections):
 
     return final_boxes
 
+
+# Not used
 def char_analysis():
     img_folder = "../hig_crop/"
     img_list = [x for x in os.listdir(img_folder) if x.endswith(".jpg")]
