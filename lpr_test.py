@@ -21,6 +21,7 @@ from torch.autograd import Variable
 import cv2
 import time
 
+import imutils
 
 # Transform image tensor (PIL), return final image tensor
 def transform_tensor(input_tensor, image_size, current_device):
@@ -32,7 +33,7 @@ def transform_tensor(input_tensor, image_size, current_device):
     output_tensor = output_tensor.to(current_device)
     return output_tensor
 
-
+# KCF_FLAG = False
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--video_path", default="video/seq01_compress.mp4", type=str)
@@ -106,12 +107,15 @@ if __name__ == "__main__":
 
     # Read Video
     cap = cv2.VideoCapture(opt.video_path)
+    # fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    # writer = cv2.VideoWriter("lpr_test.mp4", fourcc, 30.0, (640, 480))
     if cap.isOpened():
         print("Success read video...")
     
     frame_num = 0
     plate_time_list = []
     char_time_list = []
+
     while True:
         ret, frame = cap.read()
         if ret:
@@ -152,30 +156,32 @@ if __name__ == "__main__":
             
             if plate_detections[0] is not None:
                 plate_detections = plate_detections[0]
+
                 # rescale box to origin image
                 plate_detections = torch.Tensor(plate_detections)
                 plate_detections = rescale_boxes(plate_detections, opt.plate_size, cvt_img.shape[:2])
                 unique_labels = plate_detections[:, -1].cpu().unique()
-                p_num = 0
-                for x1, y1, x2, y2, conf, cls_conf, cls_pred in plate_detections:
-                    plate_pred_index = int(cls_pred.cpu())
-                    plate_color = p_names[plate_pred_index]
 
-                    # draw
-                    if plate_pred_index == 0:
-                        draw_plate_color = (255, 255, 255)
-                    elif plate_pred_index == 1:
-                        draw_plate_color = (0, 255, 255)
+                for plate_id, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(plate_detections):
+                    color_id = int(cls_pred.cpu())
+                    plate_color = p_names[color_id]
+
+                    # Draw plate color (white, yellow, green)
+                    if color_id == 0:
+                        plate_color = (255, 255, 255)
+                    elif color_id == 1:
+                        plate_color = (0, 255, 255)
                     else:
-                        draw_plate_color = (0,255,0)
+                        plate_color = (0,255,0)
 
+                    # YOLOv3 result of plate detection
                     x1 = int(x1.item())
                     y1 = int(y1.item())
                     x2 = int(x2.item())
-                    y2 = int(y2.item())
+                    y2 = int(y2.item())               
 
-                    # draw plate box 
-                    frame = cv2.rectangle(frame, (x1, y1), (x2, y2), draw_plate_color, 2)
+                    # Draw yolo plate box
+                    frame = cv2.rectangle(frame, (x1, y1), (x2, y2), plate_color, 2)
 
                     # crop plate image
                     plate_img = cvt_img[y1:y2, x1:x2]
@@ -204,7 +210,7 @@ if __name__ == "__main__":
                                                             plate_img.shape[:2])
 
                         char_detect_size = len(char_detections)
-
+                        
                         # Postprocessing
                         sorted_boxes = sort_boxes(char_detections)
 
@@ -226,8 +232,8 @@ if __name__ == "__main__":
                                                         (cx1, cy1),
                                                         (cx2, cy2),
                                                         (0,255,0), 1)
-                    # cv2.imshow("CharResult_"+str(p_num), plate_img)
-                    p_num += 1
+
+                            frame = cv2.rectangle(frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255,255,0), 1)
 
             f_time = time.time() - f_start
             fps = round((1 / f_time), 2)
@@ -236,12 +242,14 @@ if __name__ == "__main__":
             cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
             if char_detect_size > 6:
                 cv2.putText(frame, plate_color, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-                print("Frame => {}\tChar => {} \tPlate Inf Time => {}ms \tChar Inf Time => {}ms".format(
-                    frame_num, result_char, round(plate_time, 2) ,round(char_time, 2))
-                    )
+                # print("Frame => {}\tChar => {} \tPlate Inf Time => {}ms \tChar Inf Time => {}ms".format(
+                #     frame_num, result_char, round(plate_time, 2) ,round(char_time, 2))
+                #     )
 
-            # h,w = frame.shape[:2]
+            cv2.namedWindow("frame")
+            cv2.moveWindow("frame", 3840,500)
             cv2.imshow("frame", frame)
+            # writer.write(frame)
 
             frame_num += 1
 
@@ -255,7 +263,7 @@ if __name__ == "__main__":
     cap.release()
     cv2.destroyAllWindows()
 
-    # Check average inference time
+    # Average inference time
     print("\n\t==>LPR Inference Time")
     print("\t\t==>Plate Detection : ", str(sum(plate_time_list) / len(plate_time_list)))
     print("\t\t==>Character Recognition : ", str(sum(char_time_list) / len(char_time_list)))
