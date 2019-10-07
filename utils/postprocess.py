@@ -2,6 +2,30 @@ import cv2
 import numpy as np
 import os
 
+def calc_iou(boxA, boxB):
+    # determine the (x, y)-coordinates of the intersection rectangle
+	xA = max(boxA[0], boxB[0])
+	yA = max(boxA[1], boxB[1])
+	xB = min(boxA[2], boxB[2])
+	yB = min(boxA[3], boxB[3])
+ 
+	# compute the area of intersection rectangle
+	interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
+ 
+	# compute the area of both the prediction and ground-truth
+	# rectangles
+	boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
+	boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
+ 
+	# compute the intersection over union by taking the intersection
+	# area and dividing it by the sum of prediction + ground-truth
+	# areas - the interesection area
+	iou = interArea / float(boxAArea + boxBArea - interArea)
+ 
+	# return the intersection over union value
+	return iou
+
+
 def get_name(object_id):
     kr_names = ["0","1","2","3","4","5","6","7","8","9",
         "가","나","고","노","다","라","마","거","너","더","러","머","도","로","모",
@@ -63,6 +87,7 @@ def delete_errorbox(input_array):
 '''
 
 def sort_boxes(char_detections):
+    # # Exmaple Tensor...
     # x1, y1, x2, y2, prob, cls_conf, object_id
     # char_detections = np.array(
     #     [[56.780655, 8.455865, 63.07199,18.356714, 0.9345888, 0.9963361, 5.],
@@ -73,14 +98,6 @@ def sort_boxes(char_detections):
     #     [26.695444, 8.803099, 33.28907, 19.630323, 0.5839797, 0.9987348, 3.],
     #     [39.130512, 8.719946, 48.26919, 19.141325, 0.85395133, 0.63955206, 14.]]
     #     )
-
-    # char_detections = [[32.2381,  4.3751, 37.6869, 11.9321,  0.9933,  0.9994,  1.0000],
-    #     [42.5776,  3.4111, 47.6819, 11.9104,  0.9923,  0.9902,  7.0000],
-    #     [37.2367,  3.9156, 43.1454, 11.8366,  0.9502,  0.8785,  9.0000],
-    #     [25.9663,  4.7542, 32.4655, 11.9797,  0.6387,  0.9787,  9.0000],
-    #     [ 8.0195,  5.8439, 13.6192, 13.6766,  0.5533,  0.9996,  4.0000],
-    #     [17.0385,  4.4799, 26.8813, 13.6360,  0.9317,  0.4455, 36.0000],
-    #     [12.9755,  5.2855, 18.1150, 13.8681,  0.9161,  0.2191,  3.0000]]
 
     # Y sort
     y_sorted = sorted(char_detections, key=lambda y_value: y_value[1])
@@ -123,62 +140,19 @@ def sort_boxes(char_detections):
 
     return final_boxes
 
+# Video post-processing
+# Get 2 frame plate information.
+def plate_match(plate_list):
+    for idx, plate_detections in enumerate(plate_list):
+        if idx < (len(plate_list) - 1):
+            next_detections = plate_list[idx + 1]
 
-# Not used
-def char_analysis():
-    img_folder = "../hig_crop/"
-    img_list = [x for x in os.listdir(img_folder) if x.endswith(".jpg")]
+            # Current detections
+            for x1, y1, x2, y2, conf, cls_conf, cls_pred in plate_detections:
+                # Next detections
+                for nx1, ny1, nx2, ny2, n_conf, n_cls_conf, n_cls_pred in next_detections:
+                    iou = clac_iou([x1,y1,x2,y2], [nx1, ny1, nx2, ny2])
 
-    ori_list = []
-    bin_list = []
-    adapt_list = []
-
-    for i in img_list:
-        img_path = img_folder + i
-        img = cv2.imread(img_path)
-        
-        if type(img) is not type(None):
-            ori_list.append(img)
-
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            g_blur = cv2.GaussianBlur(gray, (3,3), 0)
-
-            # Binary
-            _, bin_img = cv2.threshold(g_blur, 127, 255, cv2.THRESH_BINARY)
-            h,w = bin_img.shape[:2]
-            bin_img[int(h/5):int(h/5*4), int(w/4):int(w/4*3)] = 255
-            bin_list.append(bin_img)
-
-            # Adaptive Threshold
-            adapt_bin_img = cv2.adaptiveThreshold(g_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, 
-                cv2.THRESH_BINARY, 15, 2)
-
-            adapt_list.append(adapt_bin_img)
-            
-
-            
-
-    cnt = 0
-    for j in range(len(ori_list)):
-        ori_name = str(j) + "_ori"
-        bin_name = str(j) + "_bin"
-        adpt_name = str(j) + "_adapt"
-
-        cv2.namedWindow(ori_name)
-        cv2.namedWindow(bin_name)
-        cv2.namedWindow(adpt_name)
-
-        cv2.moveWindow(ori_name, 0,int(cnt*150))
-        cv2.moveWindow(bin_name, 200, int(cnt*150))
-        cv2.moveWindow(adpt_name, 400, int(cnt*150))
-
-        cv2.imshow(ori_name, ori_list[j])
-        cv2.imshow(bin_name, bin_list[j])
-        cv2.imshow(adpt_name, adapt_list[j])
-
-        if j % 10 == 0:
-            cv2.waitKey()
-            cv2.destroyAllWindows()
-            cnt = 0
-
-        cnt += 1
+                    # Same plate
+                    if iou >= 0.7:
+                        final_box = [nx1, ny1, nx2, ny2]

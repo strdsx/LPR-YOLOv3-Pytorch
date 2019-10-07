@@ -12,6 +12,8 @@ def main():
     bbox = None
     frame_num = 0
 
+    frame_info = {}
+
     while True:
         f_start = time.time()
 
@@ -38,12 +40,16 @@ def main():
         y2 = y1 + int(bbox[3])
         cv2.rectangle(frame,(x1, y1), (x2, y2), (0,255,0), 2)
 
+        frame_info[frame_num] = [x1,y1,x2,y2]
+
         # fps
         f_time = time.time() - f_start
         fps = round((1 / f_time), 2)
         cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
 
         cv2.imshow("frame", frame)
+
+        print(frame_info)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

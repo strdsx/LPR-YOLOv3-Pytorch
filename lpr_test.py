@@ -65,7 +65,7 @@ if __name__ == "__main__":
         device = "cpu"
 
     # Check Init.
-    print("\t => Use ", device)
+    print("\t => Device ", device)
     
     print("\t => Plate Information")
     print("\t\t => config : ", opt.plate_config)
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     plateModel.eval()
     charModel.eval()
 
-    # load obj names
+    # load obj names (Char : EN name)
     p_names = load_classes(opt.plate_names)
     c_names = load_classes(opt.char_names)
 
@@ -112,10 +112,16 @@ if __name__ == "__main__":
     if cap.isOpened():
         print("Success read video...")
     
-    frame_num = 0
+    # Time list
     plate_time_list = []
     char_time_list = []
 
+    # for video post-processing
+    plate_list = []
+    char_list = []
+    result_char = ""
+    
+    frame_num = 0
     while True:
         ret, frame = cap.read()
         if ret:
@@ -126,7 +132,6 @@ if __name__ == "__main__":
             cvt_img =cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
 
             pil_img = Image.fromarray(cvt_img)
-            img_tensor = transforms.ToTensor()(pil_img)            
 
             ## torchvision
             img_tensor = transforms.ToTensor()(pil_img)
@@ -140,13 +145,9 @@ if __name__ == "__main__":
 
             plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
-            # for Visualization
-            char_detect_size = 0
-            result_char = ""
-
             with torch.no_grad():
                 # License Plate Inference Time
-                start = time.time() 
+                start = time.time()
                 
                 plate_detections = plateModel(plate_tensor)
                 plate_detections = non_max_suppression(plate_detections, opt.plate_thres, opt.plate_nms)
@@ -154,97 +155,102 @@ if __name__ == "__main__":
                 plate_time = float(time.time() - start) * 1000
                 plate_time_list.append(plate_time)
             
-            if plate_detections[0] is not None:
-                plate_detections = plate_detections[0]
+                # Error prevention
+                if plate_detections[0] is not None:
+                    plate_detections = plate_detections[0]
 
-                # rescale box to origin image
-                plate_detections = torch.Tensor(plate_detections)
-                plate_detections = rescale_boxes(plate_detections, opt.plate_size, cvt_img.shape[:2])
-                unique_labels = plate_detections[:, -1].cpu().unique()
+                    # rescale box to origin image
+                    plate_detections = torch.Tensor(plate_detections)
+                    plate_detections = rescale_boxes(plate_detections, opt.plate_size, cvt_img.shape[:2])
+                    unique_labels = plate_detections[:, -1].cpu().unique()
 
-                for plate_id, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(plate_detections):
-                    color_id = int(cls_pred.cpu())
-                    plate_color = p_names[color_id]
+                    # Result of plate detections
+                    for plate_id, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(plate_detections):
+                        color_id = int(cls_pred.cpu())
+                        plate_color = p_names[color_id]
 
-                    # Draw plate color (white, yellow, green)
-                    if color_id == 0:
-                        plate_color = (255, 255, 255)
-                    elif color_id == 1:
-                        plate_color = (0, 255, 255)
-                    else:
-                        plate_color = (0,255,0)
+                        # Plate color (white, yellow, green)
+                        if color_id == 0:
+                            draw_color = (255, 255, 255)
+                        elif color_id == 1:
+                            draw_color = (0, 255, 255)
+                        elif color_id == 2:
+                            draw_color = (0,255,0)
 
-                    # YOLOv3 result of plate detection
-                    x1 = int(x1.item())
-                    y1 = int(y1.item())
-                    x2 = int(x2.item())
-                    y2 = int(y2.item())               
+                        # YOLOv3 result of plate detection
+                        x1 = int(x1.item())
+                        y1 = int(y1.item())
+                        x2 = int(x2.item())
+                        y2 = int(y2.item())
 
-                    # Draw yolo plate box
-                    frame = cv2.rectangle(frame, (x1, y1), (x2, y2), plate_color, 2)
+                        # Draw yolo plate box
+                        frame = cv2.rectangle(frame, (x1, y1), (x2, y2), draw_color, 2)
 
-                    # crop plate image
-                    plate_img = cvt_img[y1:y2, x1:x2]
-                    plate_pil = Image.fromarray(plate_img)
+                        # crop plate image
+                        plate_img = cvt_img[y1:y2, x1:x2]
+                        plate_pil = Image.fromarray(plate_img)
 
-                    # to Tensor
-                    char_tensor = transforms.ToTensor()(plate_pil)
-                    char_tensor = transform_tensor(char_tensor, opt.char_size, device)
+                        # to Tensor
+                        char_tensor = transforms.ToTensor()(plate_pil)
+                        char_tensor = transform_tensor(char_tensor, opt.char_size, device)
 
-                    # Character detection
-                    c_start = time.time()
+                        # Character detection time start
+                        c_start = time.time()
 
-                    char_detections = charModel(char_tensor)
-                    char_detections = non_max_suppression(char_detections,
-                                                            opt.char_thres,
-                                                            opt.char_nms)
-                    # Character Inference Time.
-                    char_time = float(time.time() - c_start) * 1000
+                        char_detections = charModel(char_tensor)
+                        char_detections = non_max_suppression(char_detections,
+                                                                opt.char_thres,
+                                                                opt.char_nms)
+                        # Character Inference Time.
+                        char_time = float(time.time() - c_start) * 1000
 
-                    char_time_list.append(char_time)
+                        char_time_list.append(char_time)
 
-                    if char_detections[0] is not None:
-                        char_detections = char_detections[0]
-                        char_detections = rescale_boxes(char_detections,
-                                                            opt.char_size,
-                                                            plate_img.shape[:2])
-
-                        char_detect_size = len(char_detections)
-                        
-                        # Postprocessing
-                        sorted_boxes = sort_boxes(char_detections)
-
-                        result_char = ""
-                        for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in sorted_boxes:
-
-                            # License plate char result
-                            pred_index = int(c_cls_pred.cpu())
+                        # Error prevention
+                        if char_detections[0] is not None:
+                            char_detections = char_detections[0]
+                            char_detections = rescale_boxes(char_detections,
+                                                                opt.char_size,
+                                                                plate_img.shape[:2])
                             
-                            ## Plate Char EN
-                            # result_char += c_names[pred_index]
+                            # Postprocessing
+                            sorted_boxes = sort_boxes(char_detections)
 
-                            # Plate Char KR
-                            get_char, _  = get_name(pred_index)
-                            result_char += get_char
+                            result_char = ""
 
-                            # Draw character detection boxes
-                            plate_img = cv2.rectangle(plate_img,
-                                                        (cx1, cy1),
-                                                        (cx2, cy2),
-                                                        (0,255,0), 1)
+                            # Result of License Plate Character recognitions
+                            for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in sorted_boxes:
 
-                            frame = cv2.rectangle(frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255,255,0), 1)
+                                # License plate char result
+                                pred_index = int(c_cls_pred.cpu())
+                                
+                                ## Plate Char EN
+                                # result_char += c_names[pred_index]
 
+                                # Plate Char KR
+                                get_char, _  = get_name(pred_index)
+                                result_char += get_char
+
+                                # Draw character detection boxes
+                                plate_img = cv2.rectangle(plate_img,
+                                                            (cx1, cy1),
+                                                            (cx2, cy2),
+                                                            (0,255,0), 1)
+
+                                frame = cv2.rectangle(frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255,255,0), 1)
+            
+                    # Result of Character
+                    if len(char_detections) > 6:
+                        cv2.putText(frame, plate_color, (x1, y1 - 5),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, draw_color, 2)
+
+                        print("Frame => {}\tChar => {} \tPlate Inf Time => {}ms \tChar Inf Time => {}ms".format(
+                            frame_num, result_char, round(plate_time, 2) ,round(char_time, 2))
+                            )
+
+            # FPS
             f_time = time.time() - f_start
             fps = round((1 / f_time), 2)
-            
-            # Put text
             cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-            if char_detect_size > 6:
-                cv2.putText(frame, plate_color, (200, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-                # print("Frame => {}\tChar => {} \tPlate Inf Time => {}ms \tChar Inf Time => {}ms".format(
-                #     frame_num, result_char, round(plate_time, 2) ,round(char_time, 2))
-                #     )
 
             cv2.namedWindow("frame")
             cv2.moveWindow("frame", 3840,500)
