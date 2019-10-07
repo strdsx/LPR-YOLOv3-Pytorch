@@ -39,6 +39,9 @@ def get_name(object_id):
         char_type = "SINGLE"
     elif object_id > 49:
         char_type = "AREA"
+
+    if 42 < object_id < 48:
+        char_type = "AREA"
     
     return kr_names[object_id], char_type
 
@@ -65,11 +68,6 @@ def delete_overlap(input_array):
                     error_index = i
                     
                 error_boxes.append(error_index)
-    
-    # Delete overlap boxes
-    # for e in error_boxes:
-    #     print("len(input_array) = {}, error index = {}".format(len(input_array), e))
-    #     del input_array[e]
 
     return_array = []
     for i, b in enumerate(input_array):
@@ -78,13 +76,6 @@ def delete_overlap(input_array):
 
     return return_array
 
-'''
-def delete_errorbox(input_array):
-    error_boxes = []
-    
-    if len(input_array) > 6: # max number of character
-        # Thin plate
-'''
 
 def sort_boxes(char_detections):
     # # Exmaple Tensor...
@@ -139,6 +130,57 @@ def sort_boxes(char_detections):
         final_boxes = char_detections
 
     return final_boxes
+
+
+def color_condition(color_id, post_bboxes):
+    result_bboxes = []
+    # for idx, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(post_bboxes):
+    for idx, bbox_info in enumerate(post_bboxes):
+        success = True
+        object_id = int(bbox_info[6].cpu())
+
+        # Plate Color Condition
+        if 9 < object_id < 50:
+            char_type = "SINGLE"
+        elif object_id > 49:
+            char_type = "AREA"
+        else:
+            char_type = "NUMBER"
+        
+        if 42 < object_id < 48:
+            char_type = "AREASINGLE"
+
+        # White
+        if color_id == 0:
+            if char_type == "AREA":
+                # error_list.append(idx)
+                success = False
+        # Yellow
+        elif color_id == 1:
+            if char_type == "SINGLE":
+                # error_list.append(idx)
+                success = False
+        else:
+            success = True
+
+        if success == True:
+            result_bboxes.append(bbox_info)
+
+    return result_bboxes
+
+
+def min_char_length(color_id):
+    # White
+    if color_id == 0:
+        min_length = 7
+    elif color_id == 1:
+        min_length = 8
+    else:
+        min_length = 7
+    
+    return min_length
+
+
 
 # Video post-processing
 # Get 2 frame plate information.

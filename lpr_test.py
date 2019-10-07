@@ -215,6 +215,7 @@ if __name__ == "__main__":
                             
                             # Postprocessing
                             sorted_boxes = sort_boxes(char_detections)
+                            sorted_boxes = color_condition(color_id, sorted_boxes)
 
                             result_char = ""
 
@@ -240,11 +241,11 @@ if __name__ == "__main__":
                                 frame = cv2.rectangle(frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255,255,0), 1)
             
                     # Result of Character
-                    if len(char_detections) > 6:
+                    if len(char_detections) > (min_char_length(color_id) - 1):
                         cv2.putText(frame, plate_color, (x1, y1 - 5),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, draw_color, 2)
 
-                        print("Frame => {}\tChar => {} \tPlate Inf Time => {}ms \tChar Inf Time => {}ms".format(
-                            frame_num, result_char, round(plate_time, 2) ,round(char_time, 2))
+                        print("Frame => {} \tColor => {} \tChar => {} \tPlate Inf Time => {}ms \tChar Inf Time => {}ms".format(
+                            frame_num, plate_color, result_char, round(plate_time, 2) ,round(char_time, 2))
                             )
 
             # FPS
