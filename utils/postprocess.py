@@ -132,45 +132,75 @@ def sort_boxes(char_detections):
     return final_boxes
 
 
-def color_condition(color_id, post_bboxes):
-    result_bboxes = []
-    # for idx, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(post_bboxes):
-    for idx, bbox_info in enumerate(post_bboxes):
-        success = True
-        object_id = int(bbox_info[6].cpu())
+def char_condition(color_id, char_detections):
+    with open("./data/pchar84.names", "r") as f:
+        names = f.readlines()
 
-        # Plate Color Condition
-        if 9 < object_id < 50:
-            char_type = "SINGLE"
-        elif object_id > 49:
-            char_type = "AREA"
-        else:
-            char_type = "NUMBER"
-        
-        if 42 < object_id < 48:
-            char_type = "AREASINGLE"
+    number_of_names = len(names)
 
-        # White
+    num_list = [x for x in range(0, 10)]
+    area_list = [x for x in range(50, 84)]
+    yellow_char_list = [x for x in range(43, 48)]
+    white_char_list = []
+
+    for i in range(number_of_names):
+        if (i not in num_list) and (i not in area_list) and (i not in yellow_char_list):
+            white_char_list.append(i)
+
+    # Condition 1 : Plate color
+    color_filter_boxes = []
+    for box_info in char_detections:
+        char_id = int(box_info[6].cpu())
         if color_id == 0:
-            if char_type == "AREA":
-                # error_list.append(idx)
-                success = False
-        # Yellow
+            if (char_id in white_char_list) or (char_id in num_list):
+                color_filter_boxes.append(box_info)
         elif color_id == 1:
-            if char_type == "SINGLE":
-                # error_list.append(idx)
-                success = False
-        else:
-            success = True
+            if (char_id in yellow_char_list) or (char_id in num_list) or (char_id in area_list):
+                color_filter_boxes.append(box_info)
 
-        if success == True:
-            result_bboxes.append(bbox_info)
+        elif color_id == 2:
+            if (char_id in num_list) or (char_id in area_list):
+                color_filter_boxes.append(box_info)
 
-    return result_bboxes
+    # Condition 2 : Plate length
+    # Find additional box
+    addi_box_idx = []
+    for idx, box in enumerate(color_filter_boxes):
+        c_id = int(box[6].cpu())
+
+        if c_id in white_char_list:
+
+            # Find single character
+            pivot_idx = idx
+
+            if pivot_idx > 2:
+                for a in range(pivot_idx-2):
+                    addi_box_idx.append(a)
+            
+            if (len(color_filter_boxes) - 1) > (pivot_idx + 4):
+                for a in range(pivot_idx + 4, len(color_filter_boxes)):
+                    addi_box_idx.append(idx)
+
+        elif c_id in yellow_char_list:
+            pivot_idx = idx
+            if idx > 3:
+                for a in range(pivot_idx-3):
+                    addi_box_idx.append(a)
+
+            if (len(color_filter_boxes) - 1) > (pivot_idx + 4):
+                for a in range(pivot_idx + 4, len(color_filter_boxes)):
+                    addi_box_idx.append(idx)
+    
+    final_boxes = []
+    for obj_id, box in enumerate(color_filter_boxes):
+        if obj_id not in addi_box_idx:
+            final_boxes.append(color_filter_boxes[obj_id])                
+
+    return final_boxes
+            
 
 
 def min_char_length(color_id):
-    # White
     if color_id == 0:
         min_length = 7
     elif color_id == 1:

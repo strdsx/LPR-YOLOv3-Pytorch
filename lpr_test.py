@@ -215,7 +215,7 @@ if __name__ == "__main__":
                             
                             # Postprocessing
                             sorted_boxes = sort_boxes(char_detections)
-                            sorted_boxes = color_condition(color_id, sorted_boxes)
+                            sorted_boxes = char_condition(color_id, sorted_boxes)
 
                             result_char = ""
 
