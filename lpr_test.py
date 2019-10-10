@@ -33,7 +33,6 @@ def transform_tensor(input_tensor, image_size, current_device):
     output_tensor = output_tensor.to(current_device)
     return output_tensor
 
-# KCF_FLAG = False
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--video_path", default="video/seq01_compress.mp4", type=str)
@@ -120,12 +119,16 @@ if __name__ == "__main__":
     plate_list = []
     char_list = []
     result_char = ""
+
+    # Tracker
+    trackers_dict = {}
     
     frame_num = 0
     while True:
         ret, frame = cap.read()
         if ret:
             f_start = time.time()
+
             # Plate detection
             cvt_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             gray_img = cv2.cvtColor(cvt_img, cv2.COLOR_RGB2GRAY)
@@ -164,6 +167,9 @@ if __name__ == "__main__":
                     plate_detections = rescale_boxes(plate_detections, opt.plate_size, cvt_img.shape[:2])
                     unique_labels = plate_detections[:, -1].cpu().unique()
 
+                    # Tracker dict
+                    trackers_dict = {key : cv2.TrackerKCF_create() for key in range(len(plate_detections))}
+
                     # Result of plate detections
                     for plate_id, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(plate_detections):
                         color_id = int(cls_pred.cpu())
@@ -182,6 +188,8 @@ if __name__ == "__main__":
                         y1 = int(y1.item())
                         x2 = int(x2.item())
                         y2 = int(y2.item())
+
+                        trackers_dict[plate_id].init(frame, (x1, y1, x2-x1, y2-y1))
 
                         # Draw yolo plate box
                         frame = cv2.rectangle(frame, (x1, y1), (x2, y2), draw_color, 2)
@@ -247,6 +255,32 @@ if __name__ == "__main__":
                         print("Frame => {} \tColor => {} \tChar => {} \tPlate Inf Time => {}ms \tChar Inf Time => {}ms".format(
                             frame_num, plate_color, result_char, round(plate_time, 2) ,round(char_time, 2))
                             )
+
+            # Tracker
+            del_boxes = []
+            for p_id, track in trackers_dict.items():
+
+                ret, b = track.update(frame)
+
+                if b == (0.0, 0.0, 0.0, 0.0):
+                    del_boxes.append(p_id)
+                else:
+                    ratio = float(b[3]/b[2])
+                    if ratio > 0.9:
+                        del_boxes.append(p_id)
+                    else:
+                        px1 = int(b[0])
+                        py1 = int(b[1])
+                        px2 = x1 + int(b[2])
+                        py2 = y1 + int(b[3])
+
+                        cv2.putText(frame, "Tracking", (px1, py2 + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
+                        cv2.rectangle(frame,(px1, py1), (px2, py2), (255,255,0), 2)
+
+            # Delete Tracking Fail boxes
+            for d in del_boxes:
+                trackers_dict.pop(d)
+
 
             # FPS
             f_time = time.time() - f_start
