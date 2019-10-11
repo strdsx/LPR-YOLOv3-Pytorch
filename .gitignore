@@ -18,6 +18,12 @@ video
 *.wmv
 *.jpg
 *.png
+*.weights
+*.cfg
+*.data
+*.mp4
+*.avi
+*.mov
 
 *.swo
 *.swp

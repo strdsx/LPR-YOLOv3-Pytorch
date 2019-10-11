@@ -107,7 +107,7 @@ if __name__ == "__main__":
     # Read Video
     cap = cv2.VideoCapture(opt.video_path)
     # fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    # writer = cv2.VideoWriter("lpr_test.mp4", fourcc, 30.0, (640, 480))
+    # writer = cv2.VideoWriter("output_video/output_traffic2.mp4", fourcc, 30.0, (640, 480))
     if cap.isOpened():
         print("Success read video...")
     
@@ -167,8 +167,8 @@ if __name__ == "__main__":
                     plate_detections = rescale_boxes(plate_detections, opt.plate_size, cvt_img.shape[:2])
                     unique_labels = plate_detections[:, -1].cpu().unique()
 
-                    # Tracker dict
-                    trackers_dict = {key : cv2.TrackerKCF_create() for key in range(len(plate_detections))}
+                    # # Tracker dict
+                    # trackers_dict = {key : cv2.TrackerKCF_create() for key in range(len(plate_detections))}
 
                     # Result of plate detections
                     for plate_id, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(plate_detections):
@@ -189,12 +189,22 @@ if __name__ == "__main__":
                         x2 = int(x2.item())
                         y2 = int(y2.item())
 
-                        trackers_dict[plate_id].init(frame, (x1, y1, x2-x1, y2-y1))
+                        # # Tracker
+                        # trackers_dict[plate_id].init(frame, (x1, y1, x2-x1, y2-y1))
 
                         # Draw yolo plate box
                         frame = cv2.rectangle(frame, (x1, y1), (x2, y2), draw_color, 2)
 
                         # crop plate image
+                        if x1 < 0:
+                            x1 = 0
+                        if y1 < 0:
+                            y1 = 0
+                        if x2 > cvt_img.shape[1]:
+                            x2 = cvt_img.shape[1]
+                        if y2 > cvt_img.shape[0]:
+                            y = cvt_img.shape[0]
+                            
                         plate_img = cvt_img[y1:y2, x1:x2]
                         plate_pil = Image.fromarray(plate_img)
 
@@ -256,30 +266,27 @@ if __name__ == "__main__":
                             frame_num, plate_color, result_char, round(plate_time, 2) ,round(char_time, 2))
                             )
 
-            # Tracker
-            del_boxes = []
-            for p_id, track in trackers_dict.items():
+            # # Tracker
+            # del_boxes = []
+            # for p_id, track in trackers_dict.items():
 
-                ret, b = track.update(frame)
+            #     ret, b = track.update(frame)
 
-                if b == (0.0, 0.0, 0.0, 0.0):
-                    del_boxes.append(p_id)
-                else:
-                    ratio = float(b[3]/b[2])
-                    if ratio > 0.9:
-                        del_boxes.append(p_id)
-                    else:
-                        px1 = int(b[0])
-                        py1 = int(b[1])
-                        px2 = x1 + int(b[2])
-                        py2 = y1 + int(b[3])
+            #     if b == (0.0, 0.0, 0.0, 0.0):
+            #         del_boxes.append(p_id)
+            #     else:
+            #         px1 = int(b[0])
+            #         py1 = int(b[1])
+            #         px2 = x1 + int(b[2])
+            #         py2 = y1 + int(b[3])
 
-                        cv2.putText(frame, "Tracking", (px1, py2 + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
-                        cv2.rectangle(frame,(px1, py1), (px2, py2), (255,255,0), 2)
+            #         cv2.putText(frame, "Tracking", (px1, py2 + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
+            #         cv2.rectangle(frame,(px1, py1), (px2, py2), (255,255,0), 2)
 
-            # Delete Tracking Fail boxes
-            for d in del_boxes:
-                trackers_dict.pop(d)
+
+            # # Delete Tracking Fail boxes
+            # for d in del_boxes:
+            #     trackers_dict.pop(d)
 
 
             # FPS
@@ -288,7 +295,7 @@ if __name__ == "__main__":
             cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
 
             cv2.namedWindow("frame")
-            cv2.moveWindow("frame", 3840,500)
+            # cv2.moveWindow("frame", 3840,500)
             cv2.imshow("frame", frame)
             # writer.write(frame)
 
