@@ -34,27 +34,65 @@ def transform_tensor(input_tensor, image_size, current_device):
 def main():
     input_image_size = 416
     device = "cuda"
-    Model = Darknet("config/yolov3.cfg", input_image_size).to(device)
-    Model.load_darknet_weights("weights/yolov3.weights")
+    Model = Darknet("config/color-plate.cfg", input_image_size).to(device)
+    Model.load_darknet_weights("weights/plate_train_last.weights")
     Model.eval()
     
-    char_names = load_classes("data/coco.names")
+    char_names = load_classes("data/color-plate.names")
 
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
     # img_path = "./data/plate/plate.jpg"
     # img = cv2.imread(img_path)
 
-    cap = cv2.VideoCapture("video/191011_driving.mp4")
+    cap = cv2.VideoCapture("video/seq01_compress.mp4")
     if cap.isOpened():
         print("Success read video...")
 
     frame_number = 0
+
+    trackers_dict = {}    
+
     while True:
         f_start = time.time()
 
         ret, frame = cap.read()
         if ret is None: break
+
+        # Tracker dict
+        if frame_number == 100:
+            trackers_dict = {key : cv2.TrackerKCF_create() for key in range(2)}
+            for x in range(2):
+                roi = cv2.selectROI(frame)
+                roi = [int(x) for x in roi]
+                x1 = roi[0]
+                y1 = roi[1]
+                w = roi[2]
+                h = roi[3]
+                trackers_dict[x].init(frame, (x1,y1,w,h))
+        
+        # Update Tracker
+        del_boxes = []
+        for p_id, track in trackers_dict.items():
+
+            ret, tb = track.update(frame)
+
+
+            if tb == (0.0, 0.0, 0.0, 0.0):
+                del_boxes.append(p_id)
+            else:
+                px1 = int(tb[0])
+                py1 = int(tb[1])
+                px2 = px1 + int(tb[2])
+                py2 = py1 + int(tb[3])
+
+                cv2.putText(frame, "Tracking", (px1, py2 + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
+                cv2.rectangle(frame,(px1 - 5 , py1 - 5), (px2 + 5 , py2 + 5), (255,255,0), 2)
+
+        # Delete Tracking Fail boxes
+        for d in del_boxes:
+            trackers_dict.pop(d)
+
 
         cvt_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         # resize_img = cv2.resize(cvt_img, (416,416))
@@ -76,8 +114,14 @@ def main():
                 
                 for x1, y1, x2, y2, conf, cls_conf, cls_pred in char_detections:
                     name = int(cls_pred.item())
-                    frame = cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
-                    cv2.putText(frame, char_names[name], (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
+                    if name == 0:
+                        draw_color = (255, 255, 255)
+                    elif name == 1:
+                        draw_color = (0, 255, 255)
+                    elif name == 2:
+                        draw_color = (0,255,0)
+                    frame = cv2.rectangle(frame, (x1, y1), (x2, y2), draw_color, 2)
+                    cv2.putText(frame, char_names[name], (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, draw_color, 2)
         
         f_time = time.time() - f_start
         fps = round((1 / f_time), 2)
