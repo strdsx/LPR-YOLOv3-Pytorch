@@ -100,7 +100,7 @@ def sort_boxes(char_detections):
         if i[0] < (len(y_sorted) - 1):
             idx = i[0] # box number
             arr = i[1] # array info
-            
+
             curr_height = arr[3] - arr[1]
             pivot_height = arr[1] + float(curr_height / 2)
 
@@ -117,7 +117,6 @@ def sort_boxes(char_detections):
     # Delete overlap box
     top_x_sorted = delete_overlap(top_x_sorted)
     bottom_x_sorted = delete_overlap(bottom_x_sorted)
-
 
     # Merge to final box
     final_boxes = top_x_sorted
@@ -148,19 +147,31 @@ def char_condition(color_id, char_detections):
             white_char_list.append(i)
 
     # Condition 1 : Plate color
+    count = 0
     color_filter_boxes = []
     for box_info in char_detections:
         char_id = int(box_info[6].cpu())
         if color_id == 0:
             if (char_id in white_char_list) or (char_id in num_list):
-                color_filter_boxes.append(box_info)
+                # 3th char is KR
+                if count == 2:
+                    if char_id in white_char_list:
+                        color_filter_boxes.append(box_info)
+                else:
+                    color_filter_boxes.append(box_info)
+                    
         elif color_id == 1:
             if (char_id in yellow_char_list) or (char_id in num_list) or (char_id in area_list):
-                color_filter_boxes.append(box_info)
+                if count == 3:
+                    if char_id in yellow_char_list:
+                        color_filter_boxes.append(box_info)
+                else:
+                    color_filter_boxes.append(box_info)
 
         elif color_id == 2:
             if (char_id in num_list) or (char_id in area_list):
                 color_filter_boxes.append(box_info)
+        count += 1
 
     # Condition 2 : Plate length
     # Find additional box
@@ -209,22 +220,3 @@ def min_char_length(color_id):
         min_length = 7
     
     return min_length
-
-
-
-# Video post-processing
-# Get 2 frame plate information.
-def plate_match(plate_list):
-    for idx, plate_detections in enumerate(plate_list):
-        if idx < (len(plate_list) - 1):
-            next_detections = plate_list[idx + 1]
-
-            # Current detections
-            for x1, y1, x2, y2, conf, cls_conf, cls_pred in plate_detections:
-                # Next detections
-                for nx1, ny1, nx2, ny2, n_conf, n_cls_conf, n_cls_pred in next_detections:
-                    iou = clac_iou([x1,y1,x2,y2], [nx1, ny1, nx2, ny2])
-
-                    # Same plate
-                    if iou >= 0.7:
-                        final_box = [nx1, ny1, nx2, ny2]

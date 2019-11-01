@@ -241,8 +241,8 @@ if __name__ == "__main__":
             # Show video
             h,w = cvt_img.shape[:2]
             winname = opt.video_path.split("/")[1]
-            cv2.namedWindow(winname)
-            cv2.moveWindow(winname, 1000,0)
+            # cv2.namedWindow(winname)
+            # cv2.moveWindow(winname, 1000,0)
             cv2.imshow(winname, frame)
 
             frame_num += 1

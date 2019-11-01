@@ -22,6 +22,8 @@ import cv2
 import time
 
 import imutils
+from collections import Counter
+
 
 # Transform image tensor (PIL), return final image tensor
 def transform_tensor(input_tensor, image_size, current_device):
@@ -71,8 +73,13 @@ def PlateDetection(plate_tensor, plateModel):
             # rescale box to origin image
             plate_detections = torch.Tensor(plate_detections)
             plate_detections = rescale_boxes(plate_detections, opt.plate_size, cvt_img.shape[:2])
+            plate_detections = sorted(plate_detections, key=lambda y_value: y_value[1])
+            plate_detections = sorted(plate_detections, key=lambda x_value: x_value[0])
+            plate_detections = delete_overlap(plate_detections)
         else:
             plate_detections = []
+
+        
 
     return plate_detections, plate_time
 
@@ -113,7 +120,7 @@ def CharRecognition(input_image, color_id, charModel):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", default="video/seq01_compress.mp4", type=str)
+    parser.add_argument("--video_path", default="video/seq01.mp4", type=str)
 
     # License Plate Detection
     parser.add_argument("--plate_config", default="config/color-plate.cfg", type=str)
@@ -195,166 +202,86 @@ if __name__ == "__main__":
     char_time_list = []
 
     # for video post-processing
-    plate_list = []
-    char_list = []
     result_char = ""
+    result_list = []
 
     # Tracker
     trackers_dict = {}
     tb = None
-    tracking_list = []
+
+    # Plate Color
+    color_list = [(255, 255, 255), (0, 255, 255), (0,255,0)]
 
     frame_num = 0
+    none_detect = 0
 
     while True:
         # prev_frame = frame[:]
         ret, frame = cap.read()
+        if type(frame) == type(None): break
+            
         draw_frame = frame.copy()
-        if ret:
-            f_start = time.time()
 
-            # Plate detection
-            # half_frame = frame[:int(frame.shape[0]/2), :]
-            cvt_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            gray_img = cv2.cvtColor(cvt_img, cv2.COLOR_RGB2GRAY)
-            cvt_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
+        draw_frame = cv2.line(draw_frame,
+            (0,int(draw_frame.shape[0]/4*3)),
+            (int(draw_frame.shape[1]), int(draw_frame.shape[0] / 4*1)), (0,0,255), 2)
 
-            pil_img = Image.fromarray(cvt_img)
+        f_start = time.time()
 
-            # torchvision
-            img_tensor = transforms.ToTensor()(pil_img)
+        # Plate detection
+        # half_frame = frame[:int(frame.shape[0]/2), :]
+        cvt_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        gray_img = cv2.cvtColor(cvt_img, cv2.COLOR_RGB2GRAY)
+        cvt_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
 
-            # YOLOv3 Area
-            # frame = cv2.line(frame, (0, int(frame.shape[0]/3)), (int(frame.shape[1]),int(frame.shape[0]/3)), (0,0,255), 2)
+        pil_img = Image.fromarray(cvt_img)
 
-            ## not torchvision
-            '''
-            img_tensor = np.array(pil_img)
-            img_tensor = torch.from_numpy(img_tensor).float().to(device)
-            img_tensor = img_tensor.permute(2,0,1) / 255.
-            '''
+        # torchvision
+        img_tensor = transforms.ToTensor()(pil_img)
 
-            plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
+        # YOLOv3 Area
+        # frame = cv2.line(frame, (0, int(frame.shape[0]/3)), (int(frame.shape[1]),int(frame.shape[0]/3)), (0,0,255), 2)
 
-            plate_detections, plate_time = PlateDetection(plate_tensor, plateModel)
-            plate_time_list.append(plate_time)
+        ## not torchvision
+        '''
+        img_tensor = np.array(pil_img)
+        img_tensor = torch.from_numpy(img_tensor).float().to(device)
+        img_tensor = img_tensor.permute(2,0,1) / 255.
+        '''
 
-            # Update Tracker
-            del_boxes = []
-            if len(trackers_dict) > 0:
-                for p_id, track in trackers_dict.items():
+        plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
-                    ret, tb = track.update(frame)
-
-                    if tb == (0.0, 0.0, 0.0, 0.0):
-                        del_boxes.append(p_id)
-                    else:
-                        px1 = int(tb[0])
-                        py1 = int(tb[1])
-                        px2 = px1 + int(tb[2])
-                        py2 = py1 + int(tb[3])
-                        
-                        cv2.putText(draw_frame, "Tracking", (px1, py2 + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
-                        cv2.rectangle(draw_frame,(px1 - 5 , py1 - 5), (px2 + 5 , py2 + 5), (255,255,0), 2)
-
-                # Delete Tracking Fail boxes
-                for d in del_boxes:
-                    trackers_dict.pop(d)
-                
-            # Tracker dict
-            if len(plate_detections) > 0:
-                # trackers_dict = {key : cv2.TrackerKCF_create() for key in range(len(plate_detections))}
-                for plate_id, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(plate_detections):
-                    # YOLO Box
-                    x1 = int(x1.item())
-                    y1 = int(y1.item())
-                    x2 = int(x2.item())
-                    y2 = int(y2.item())
-
-                    # Plate ID, Plate Color
-                    plate_info = str(plate_id) + "_" + str(int(cls_pred.cpu()))
-                    
-                    # Tracker Init
-                    trackers_dict[plate_info] = cv2.TrackerKCF_create()
-                    trackers_dict[plate_info].init(frame, (x1, y1, x2-x1, y2-y1))
-            else:
-                # If Plate Detection Fail => Update Tracker
-                del_boxes = []
-                if len(trackers_dict) > 0:
-                    for p_id, track in trackers_dict.items():
-
-                        ret, tb = track.update(frame)
-
-                        if tb == (0.0, 0.0, 0.0, 0.0):
-                            del_boxes.append(p_id)
-                        else:
-                            # Plate box
-                            px1 = int(tb[0])
-                            py1 = int(tb[1])
-                            px2 = px1 + int(tb[2])
-                            py2 = py1 + int(tb[3])
-
-                            cv2.putText(draw_frame, "Tracking", (px1, py2 + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
-                            cv2.rectangle(draw_frame,(px1 - 5 , py1 - 5), (px2 + 5 , py2 + 5), (255,255,0), 2)
-
-                            # Crop Tracking Box
-                            plate_img = cvt_img[py1:py2, px1:px2]
-
-                            # Character Recognition Start
-                            color_index = int(p_id.split("_")[1])
-                            char_boxes, char_time = CharRecognition(plate_img, color_index, charModel)
-                            char_time_list.append(char_time)
-
-                            # Result of License Plate Character recognitions
-                            tracking_char = ""
-                            for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in char_boxes:
-                                # License plate char result
-                                pred_index = int(c_cls_pred.cpu())
-
-                                ## Plate Char EN
-                                # result_char += c_names[pred_index]
-
-                                # Plate Char KR
-                                # get_char, _  = get_name(pred_index)
-                                # result_char += get_char
-                                tracking_char += get_name(pred_index)[0]
-
-                                # Draw character detection boxes
-                                draw_frame = cv2.rectangle(draw_frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255,255,0), 1)
-                            print("\tTracking Reuslt ==> ", tracking_char)
+        plate_detections, plate_time = PlateDetection(plate_tensor, plateModel)
+        plate_time_list.append(plate_time)
 
 
+        ######################
+        ### Update Tracker ###
+        ######################
+        del_boxes = []
+        if len(trackers_dict) > 0:
+            for p_id, track in trackers_dict.items():
 
-                    # Delete Tracking Fail boxes
-                    for d in del_boxes:
-                        trackers_dict.pop(d)
+                ret, tb = track.update(frame)
 
-            # Result of plate detections
+                if tb == (0.0, 0.0, 0.0, 0.0):
+                    del_boxes.append(p_id)
+
+            # Delete Tracking Fail boxes
+            for d in del_boxes:
+                trackers_dict.pop(d)
+
+
+            
+        # Success Plate Detections
+        detects = []
+        if len(plate_detections) > 0:
             for plate_id, (x1, y1, x2, y2, conf, cls_conf, cls_pred) in enumerate(plate_detections):
-                color_id = int(cls_pred.cpu())
-                plate_color = p_names[color_id]
-
-                # Plate color (white, yellow, green)
-                if color_id == 0:
-                    draw_color = (255, 255, 255)
-                elif color_id == 1:
-                    draw_color = (0, 255, 255)
-                elif color_id == 2:
-                    draw_color = (0,255,0)
-
-                # YOLOv3 result of plate detection
+                # YOLO Box
                 x1 = int(x1.item())
                 y1 = int(y1.item())
                 x2 = int(x2.item())
                 y2 = int(y2.item())
-
-                # Add Tracking List
-                trackers_dict[str(plate_id) + "_" + str(int(cls_pred.cpu()))] = cv2.TrackerKCF_create()
-                trackers_dict[str(plate_id) + "_" + str(int(cls_pred.cpu()))].init(frame, (x1, y1, x2-x1, y2-y1))
-
-                # draw yolo plate box (yolov3 result)
-                draw_frame = cv2.rectangle(draw_frame, (x1, y1), (x2, y2), draw_color, 2)
-                cv2.putText(draw_frame, plate_color, (x1, y1 - 5),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, draw_color, 2)
 
                 # Error prevention
                 if x1 < 0:
@@ -364,59 +291,159 @@ if __name__ == "__main__":
                 if x2 > cvt_img.shape[1]:
                     x2 = cvt_img.shape[1]
                 if y2 > cvt_img.shape[0]:
-                    y = cvt_img.shape[0]
+                    y2 = cvt_img.shape[0]
 
+                # Plate ID, Plate Color
+                plate_info = str(plate_id) + "_" + str(int(cls_pred.cpu()))
+
+                # Tracker Init
+                trackers_dict[plate_info] = cv2.TrackerKCF_create()
+                trackers_dict[plate_info].init(frame, (x1, y1, x2-x1, y2-y1))
+
+                # draw_frame = cv2.rectangle(draw_frame, (x1, y1), (x2, y2), color_list[int(cls_pred.cpu())], 2)
+                # cv2.putText(draw_frame, p_names[int(cls_pred.cpu())], (x1, y1 - 5),  cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_list[int(cls_pred.cpu())], 2)
+
+                # Char Recognition
                 plate_img = cvt_img[y1:y2, x1:x2]
 
-                # Character Recognitions
-                char_boxes, char_time = CharRecognition(plate_img, color_id, charModel)
+                char_boxes, char_time = CharRecognition(plate_img, int(cls_pred.cpu()), charModel)
                 char_time_list.append(char_time)
 
-                # Result of License Plate Character recognitions
                 yolo_char = ""
                 for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in char_boxes:
-                    # License plate char result
                     pred_index = int(c_cls_pred.cpu())
 
-                    ## Plate Char EN
-                    # result_char += c_names[pred_index]
-
-                    # Plate Char KR
-                    # get_char, _  = get_name(pred_index)
-                    # result_char += get_char
                     yolo_char += get_name(pred_index)[0]
 
-                    # Draw character detection boxes
-                    draw_frame = cv2.rectangle(draw_frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255,255,0), 1)
-                
-                print("\tYOLO Result ==> ", yolo_char)
+                   #  draw_frame = cv2.rectangle(draw_frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255,255,0), 1)                        
 
-            # # Result of Character
-            # if len(char_detections) > (min_char_length(color_id) - 1):
-            #     print("Frame => {} \tColor => {} \tChar => {} \tPlate Inf Time => {}ms \tChar Inf Time => {}ms".format(
-            #         frame_num, plate_color, result_char, round(plate_time, 2) ,round(char_time, 2))
-            #         )
+                if len(char_boxes) > 6:
+                    # print("\tYOLOv3 Reuslt ==> ", yolo_char)
+                    detects.append([x1,y1,x2,y2,yolo_char])
 
-            # FPS
-            f_time = time.time() - f_start
-            fps = round((1 / f_time), 2)
-            cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-
-            # cv2.namedWindow("frame")
-            
-            # cv2.moveWindow("frame", 3840,500)
-            # frame = cv2.resize(frame, None, fx=2, fy=2)
-            # cv2.imshow("frame", draw_frame)
-            # writer.write(frame)
-
-            # cv2.imwrite("frame/" + str(img) + ".jpg", draw_frame)
-
-            frame_num += 1
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
         else:
-            print("Frame error...")
+            # If Plate Detection Fail => Update Tracker
+            del_boxes = []
+            if len(trackers_dict) > 0:
+                for p_id, track in trackers_dict.items():
+
+                    ret, tb = track.update(frame)
+
+                    if tb == (0.0, 0.0, 0.0, 0.0):
+                        del_boxes.append(p_id)
+                    else:
+                        # Plate box
+                        px1 = int(tb[0])
+                        py1 = int(tb[1])
+                        px2 = px1 + int(tb[2])
+                        py2 = py1 + int(tb[3])
+
+                        # Error prevention
+                        if px1 < 0:
+                            px1 = 0
+                        if py1 < 0:
+                            py1 = 0
+                        if px2 > cvt_img.shape[1]:
+                            px2 = cvt_img.shape[1]
+                        if py2 > cvt_img.shape[0]:
+                            py2 = cvt_img.shape[0]
+
+                        # cv2.putText(draw_frame, "Tracking", (px1, py2 + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
+                        # cv2.rectangle(draw_frame,(px1 - 5 , py1 - 5), (px2 + 5 , py2 + 5), (255,255,0), 2)
+
+                        # Crop Tracking Box
+                        plate_img = cvt_img[py1:py2, px1:px2]
+
+                        # Character Recognition Start
+                        color_index = int(p_id.split("_")[1])
+                        char_boxes, char_time = CharRecognition(plate_img, color_index, charModel)
+                        char_time_list.append(char_time)
+
+                        # Result of License Plate Character recognitions
+                        tracking_char = ""
+                        for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in char_boxes:
+                            # License plate char result
+                            pred_index = int(c_cls_pred.cpu())
+
+                            ## Plate Char EN
+                            # result_char += c_names[pred_index]
+
+                            # Plate Char KR
+                            # get_char, _  = get_name(pred_index)
+                            # result_char += get_char
+                            tracking_char += get_name(pred_index)[0]
+
+                            # Draw character detection boxes
+                            # draw_frame = cv2.rectangle(draw_frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255,255,0), 1)
+
+                        if len(char_boxes) > 6:
+                            # print("\tTracking Reuslt ==> ", tracking_char)
+                            detects.append([px1,py1,px2,py2,tracking_char])
+
+                # Delete Tracking Fail boxes
+                for d in del_boxes:
+                    trackers_dict.pop(d)
+
+        ### Video Post-Processing
+        # Get 7 frame info.
+        if len(result_list) == 7:
+            # video proccesing
+            print("")
+            plate_dict = {key: [] for key in range(5)}
+            for f_num in range(len(result_list)):
+
+                # [plate info 1] ,  [plate info 2]
+                res = sorted(result_list[f_num], key=lambda x_value: x_value[0])
+
+                for idx, r in enumerate(res):
+                    plate_dict[idx].append(r[4])
+            
+            for tmp in plate_dict:
+                # print(tmp, plate_dict[tmp])
+                counting = Counter(plate_dict[tmp])
+                sorted_cnt = counting.most_common()
+                if len(sorted_cnt) > 0:
+                    # character: count
+                    best_char = sorted_cnt[0][0]
+                    print("\tBest Charcter ==> {}".format(best_char))
+                
+            # detects init.
+            result_list = []
+
+        else:
+            if len(detects) > 0:
+                result_list.append(detects)
+
+        # if none detect or tracking ==> Init.
+        if len(trackers_dict) == 0:
+            none_detect += 1
+            if none_detect == 5:
+                result_list = []
+                none_detect = 0
+        else:
+            none_detect = 0
+
+        # # Current Frame Result
+        # detects = sorted(detects, key=lambda x_value: x_value[0])
+        # for det in detects:
+        #     print("Plate box = {}\tChar = {}".format(det[:4], det[4]))
+
+        # FPS
+        f_time = time.time() - f_start
+        fps = round((1 / f_time), 2)
+        cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
+
+        ### Show
+        # cv2.namedWindow("frame")
+        # cv2.moveWindow("frame", 3840,500)
+        # draw_frame = cv2.resize(draw_frame, None, fx=2, fy=2)
+        cv2.imshow("frame", draw_frame)
+        # writer.write(frame)
+        # cv2.imwrite("frame/" + str(img) + ".jpg", draw_frame)
+
+        frame_num += 1
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     # Release
