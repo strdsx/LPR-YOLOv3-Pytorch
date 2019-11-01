@@ -12,7 +12,7 @@ from PIL import Image
 
 import torch
 from torch.utils.data import DataLoader
-from torchvision import datasets
+# from torchvision import datasets
 from torch.autograd import Variable
 
 import cv2
@@ -53,8 +53,14 @@ def CharRecognition(input_image, color_id, charModel):
         plate_pil = Image.fromarray(input_image)
 
         # to Tensor
-        char_tensor = transforms.ToTensor()(plate_pil)
-        char_tensor = transform_tensor(char_tensor, opt.char_size, device)
+        # char_tensor = transforms.ToTensor()(plate_pil)
+
+        ## not torchvision
+        img_tensor = np.array(plate_pil)
+        img_tensor = torch.from_numpy(img_tensor).float().to(device)
+        img_tensor = img_tensor.permute(2,0,1) / 255.
+
+        char_tensor = transform_tensor(img_tensor, opt.char_size, device)
 
         c_start = time.time()
         char_detections = charModel(char_tensor)
@@ -82,12 +88,12 @@ def CharRecognition(input_image, color_id, charModel):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", default="video/seq01.mp4", type=str)
+    parser.add_argument("--video_path", default="video/seq01_compress.mp4", type=str)
 
     # License Plate Detection
-    parser.add_argument("--plate_config", default="config/color-plate.cfg", type=str)
-    parser.add_argument("--plate_weights", default="weights/plate_train_last.weights", type=str)
-    parser.add_argument("--plate_names", default="data/color-plate.names", type=str)
+    parser.add_argument("--plate_config", default="config/plate_color.cfg", type=str)
+    parser.add_argument("--plate_weights", default="weights/plate_color.weights", type=str)
+    parser.add_argument("--plate_names", default="data/plate_color.names", type=str)
     parser.add_argument("--plate_thres", default=0.5, type=float)
     parser.add_argument("--plate_nms", default=0.5, type=float)
     parser.add_argument("--plate_size", default=416, type=int)
@@ -249,14 +255,13 @@ if __name__ == "__main__":
 
                     # Draw character detection boxes
                     draw_frame = cv2.rectangle(draw_frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255, 255, 0), 2)
-                print("\tResult ==> ", yolo_char)
+                print(" Reuslt => {} \tPlate Time => {}ms \tChar Time => {}ms".format(yolo_char, round(plate_time, 2), round(char_time, 2)))
 
             # FPS
             f_time = time.time() - f_start
             fps = round((1 / f_time), 2)
             cv2.putText(draw_frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
-            draw_frame = cv2.resize(draw_frame, None, fx=2, fy=2)
             cv2.imshow("frame", draw_frame)
 
             frame_num += 1
@@ -271,7 +276,14 @@ if __name__ == "__main__":
     cap.release()
     cv2.destroyAllWindows()
 
+    # Calc avg time(ms)
+    avg_plate_time = round(sum(plate_time_list) / len(plate_time_list), 2)
+    avg_char_time = round(sum(char_time_list) / len(char_time_list), 2)
+
     # Average inference time
     print("\n\t==>LPR Inference Time")
-    print("\t\t==>Plate Detection : ", str(sum(plate_time_list) / len(plate_time_list)))
-    print("\t\t==>Character Recognition : ", str(sum(char_time_list) / len(char_time_list)))
+    print("\t\t==>Plate Detection : {}".format(avg_plate_time))
+    print("\t\t==>Character Recognition : {}".format(avg_char_time))
+
+
+
