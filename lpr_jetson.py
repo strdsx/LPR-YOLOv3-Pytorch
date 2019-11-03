@@ -255,7 +255,8 @@ if __name__ == "__main__":
 
                     # Draw character detection boxes
                     draw_frame = cv2.rectangle(draw_frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255, 255, 0), 2)
-                print(" Reuslt => {} \tPlate Time => {}ms \tChar Time => {}ms".format(yolo_char, round(plate_time, 2), round(char_time, 2)))
+                if len(char_boxes) > 6:
+                    print(" Reuslt => {} \tPlate Time => {}ms \tChar Time => {}ms".format(yolo_char, round(plate_time, 2), round(char_time, 2)))
 
             # FPS
             f_time = time.time() - f_start
