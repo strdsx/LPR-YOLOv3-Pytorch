@@ -88,7 +88,7 @@ def CharRecognition(input_image, color_id, charModel):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", default="video/seq01_compress.mp4", type=str)
+    parser.add_argument("--video_path", default="video/seq01.mp4", type=str)
 
     # License Plate Detection
     parser.add_argument("--plate_config", default="config/plate_color.cfg", type=str)
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("--plate_names", default="data/plate_color.names", type=str)
     parser.add_argument("--plate_thres", default=0.5, type=float)
     parser.add_argument("--plate_nms", default=0.5, type=float)
-    parser.add_argument("--plate_size", default=416, type=int)
+    parser.add_argument("--plate_size", default=512, type=int)
 
     # Character Detection
     parser.add_argument("--char_config", default="config/pchar-tiny.cfg", type=str)
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument("--char_names", default="data/pchar84.names", type=str)
     parser.add_argument("--char_thres", default=0.5, type=float)
     parser.add_argument("--char_nms", default=0.5, type=float)
-    parser.add_argument("--char_size", default=416, type=int)
+    parser.add_argument("--char_size", default=512, type=int)
 
     parser.add_argument("--batch_size", default=1, type=int)
     parser.add_argument("--n_cpu", default=0, type=int)
@@ -167,15 +167,11 @@ if __name__ == "__main__":
     char_time_list = []
 
     # for video post-processing
-    plate_list = []
-    char_list = []
-    result_char = ""
 
     frame_num = 0
 
     while True:
         ret, frame = cap.read()
-        draw_frame = frame.copy()
         if ret:
             f_start = time.time()
 
@@ -192,7 +188,7 @@ if __name__ == "__main__":
             ## not torchvision
             img_tensor = np.array(pil_img)
             img_tensor = torch.from_numpy(img_tensor).float().to(device)
-            img_tensor = img_tensor.permute(2,0,1) / 255.
+            img_tensor = img_tensor.permute(2, 0, 1) / 255.
 
             plate_tensor = transform_tensor(img_tensor, opt.plate_size, device)
 
@@ -217,12 +213,7 @@ if __name__ == "__main__":
                 y1 = int(y1.item())
                 x2 = int(x2.item())
                 y2 = int(y2.item())
-
-
-                # draw yolo plate box (yolov3 result)
-                draw_frame = cv2.rectangle(draw_frame, (x1, y1), (x2, y2), draw_color, 2)
-                cv2.putText(draw_frame, plate_color, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, draw_color, 2)
-
+                
                 # Error prevention
                 if x1 < 0:
                     x1 = 0
@@ -235,12 +226,18 @@ if __name__ == "__main__":
 
                 plate_img = cvt_img[y1:y2, x1:x2]
 
+                # draw yolo plate box (yolov3 result)
+                frame = cv2.rectangle(frame, (x1, y1), (x2, y2), draw_color, 2)
+                cv2.putText(frame, plate_color, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, draw_color, 2)
+
+
                 # Character Recognitions
                 char_boxes, char_time = CharRecognition(plate_img, color_id, charModel)
                 char_time_list.append(char_time)
 
                 # Result of License Plate Character recognitions
-                yolo_char = ""
+                result_char = ""
+                char_length = len(char_boxes)
                 for cx1, cy1, cx2, cy2, c_conf, c_cls_conf, c_cls_pred in char_boxes:
                     # License plate char result
                     pred_index = int(c_cls_pred.cpu())
@@ -251,19 +248,20 @@ if __name__ == "__main__":
                     # Plate Char KR
                     # get_char, _  = get_name(pred_index)
                     # result_char += get_char
-                    yolo_char += get_name(pred_index)[0]
+                    result_char += get_name(pred_index)[0]
 
                     # Draw character detection boxes
-                    draw_frame = cv2.rectangle(draw_frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255, 255, 0), 2)
-                if len(char_boxes) > 6:
-                    print(" Reuslt => {} \tPlate Time => {}ms \tChar Time => {}ms".format(yolo_char, round(plate_time, 2), round(char_time, 2)))
+                    frame = cv2.rectangle(frame, (x1 + cx1, y1 + cy1), (x1 + cx2, y1 + cy2), (255, 255, 0), 2)
 
+                if len(char_boxes) > 6:
+                    print(" Reuslt => {} \tPlate Time => {}ms \tChar Time => {}ms".format(result_char, round(plate_time, 2), round(char_time, 2)))
+    
             # FPS
             f_time = time.time() - f_start
             fps = round((1 / f_time), 2)
-            cv2.putText(draw_frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+            cv2.putText(frame, str(fps) + " fps", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
-            cv2.imshow("frame", draw_frame)
+            cv2.imshow("frame", frame)
 
             frame_num += 1
 
